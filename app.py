@@ -74,11 +74,11 @@ seasons = sorted(df["season"].unique())
 # ----------------------------
 # UI
 # ----------------------------
-st.set_page_config(page_title="Improved Crop Recommendation", layout="centered")
+st.set_page_config(page_title="Crop Recommendation", layout="centered")
 
-st.title("🌾 Improved Crop Recommendation System")
+st.title("🌾 Crop Recommendation System")
 
-st.write("Uses feature engineering + balanced dataset")
+# st.write("Uses feature engineering + balanced dataset")
 
 district = st.selectbox("Select District", districts)
 season = st.selectbox("Select Season", seasons)
@@ -92,10 +92,10 @@ if st.button("🔍 Recommend Crop"):
     else:
         st.success("✅ Prediction Generated")
 
-        st.subheader("🌳 Random Forest (Improved)")
+        st.subheader("🌳 Random Forest ")
         st.write(f"Crop: **{result['rf_crop']}**")
         # st.write(f"Confidence: {result['rf_confidence']:.2f}")
 
-        st.subheader("🤖 Neural Network (Improved)")
+        st.subheader("🤖 Neural Network ")
         st.write(f"Crop: **{result['nn_crop']}**")
         # st.write(f"Confidence: {result['nn_confidence']:.2f}")
