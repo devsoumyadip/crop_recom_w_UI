@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import joblib
 import tensorflow as tf
+import shap
 
 # ----------------------------
 # LOAD MODELS
@@ -20,7 +21,12 @@ le_season = encoders["season"]
 le_crop = encoders["crop"]
 
 # ----------------------------
-# LOAD DATA (for averages)
+# SHAP EXPLAINER (for RF Improved)
+# ----------------------------
+explainer = shap.TreeExplainer(rf_improved)
+
+# ----------------------------
+# LOAD DATA (for avg values)
 # ----------------------------
 df = pd.read_csv("./data/finalData.csv")
 
@@ -38,7 +44,7 @@ def get_avg_features(district):
     subset = df[df["district"] == district]
 
     cols = [
-        "area", "production", "yield",
+        "area",
         "temperature", "rainfall", "humidity",
         "nitrogen", "phosphorus", "potassium",
         "organic_carbon", "ph", "micronutrient_score"
@@ -53,6 +59,43 @@ def get_avg_features(district):
 
 
 # ----------------------------
+# 🧠 SHAP FUNCTION
+# ----------------------------
+def get_shap_explanation(input_df):
+
+    shap_values = explainer.shap_values(input_df)
+
+    # ----------------------------
+    # HANDLE DIFFERENT SHAP FORMATS
+    # ----------------------------
+    if isinstance(shap_values, list):
+        # multiclass → list of arrays
+        pred_class = np.argmax(rf_improved.predict_proba(input_df))
+        shap_vals = shap_values[pred_class]
+
+        # ensure 1D
+        shap_vals = np.array(shap_vals).reshape(-1)
+
+    else:
+        # single output
+        shap_vals = np.array(shap_values)
+
+        # flatten safely
+        shap_vals = shap_vals.reshape(-1)
+
+    feature_names = input_df.columns
+
+    # ----------------------------
+    # SAFE SORT
+    # ----------------------------
+    explanation = sorted(
+        zip(feature_names, shap_vals),
+        key=lambda x: abs(float(x[1])),  # 🔥 force scalar
+        reverse=True
+    )
+
+    return explanation[:5]
+# ----------------------------
 # 🧪 BASELINE PREDICTION
 # ----------------------------
 def predict_baseline(district, season):
@@ -60,7 +103,6 @@ def predict_baseline(district, season):
     district = district.lower().strip()
     season = season.lower().strip()
 
-    # Validation
     if district not in le_district.classes_:
         return f"❌ District '{district}' not found"
 
@@ -75,25 +117,21 @@ def predict_baseline(district, season):
         "season": s
     }])
 
-    # 🌳 RF
+    # RF
     rf_probs = rf_baseline.predict_proba(input_df)[0]
+    rf_idx = np.argmax(rf_probs)
+    rf_crop = le_crop.inverse_transform([rf_idx])[0]
+    rf_conf = rf_probs[rf_idx]
 
-    # 🤖 NN (no scaling)
+    # NN
     nn_probs = nn_baseline.predict(input_df, verbose=0)[0]
-
-    # 🔥 Ensemble (optional but good)
-    final_probs = (rf_probs + nn_probs) / 2
-
-    # 🔝 TOP 3
-    top3_idx = np.argsort(final_probs)[::-1][:3]
-
-    crops = le_crop.inverse_transform(top3_idx)
-    probs = final_probs[top3_idx]
+    nn_idx = np.argmax(nn_probs)
+    nn_crop = le_crop.inverse_transform([nn_idx])[0]
+    nn_conf = nn_probs[nn_idx]
 
     return {
-        "top3": list(zip(crops, probs)),
-        "rf_probs": rf_probs,
-        "nn_probs": nn_probs
+        "rf": (rf_crop, float(rf_conf)),
+        "nn": (nn_crop, float(nn_conf))
     }
 
 
@@ -105,17 +143,14 @@ def predict_improved(district, season):
     district = district.lower().strip()
     season = season.lower().strip()
 
-    # Validation
     if district not in le_district.classes_:
         return f"❌ District '{district}' not found"
 
     if season not in le_season.classes_:
         return f"❌ Season '{season}' not found"
 
-    # Get average environmental values
     avg_vals = get_avg_features(district)
 
-    # Encode
     d = le_district.transform([district])[0]
     s = le_season.transform([season])[0]
 
@@ -137,44 +172,24 @@ def predict_improved(district, season):
         "micronutrient_score": avg_vals["micronutrient_score"]
     }])
 
-    # 🌳 RF
+    # RF
     rf_probs = rf_improved.predict_proba(input_df)[0]
+    rf_idx = np.argmax(rf_probs)
+    rf_crop = le_crop.inverse_transform([rf_idx])[0]
+    rf_conf = rf_probs[rf_idx]
 
-    # 🤖 NN (scaled)
+    # NN
     scaled = scaler.transform(input_df)
     nn_probs = nn_improved.predict(scaled, verbose=0)[0]
+    nn_idx = np.argmax(nn_probs)
+    nn_crop = le_crop.inverse_transform([nn_idx])[0]
+    nn_conf = nn_probs[nn_idx]
 
-    # 🔥 Ensemble
-    final_probs = (rf_probs + nn_probs) / 2
-
-    # 🔝 TOP 3
-    top3_idx = np.argsort(final_probs)[::-1][:3]
-
-    crops = le_crop.inverse_transform(top3_idx)
-    probs = final_probs[top3_idx]
+    # SHAP
+    shap_values = get_shap_explanation(input_df)
 
     return {
-        "top3": list(zip(crops, probs)),
-        "rf_probs": rf_probs,
-        "nn_probs": nn_probs
-    }
-
-
-# ----------------------------
-# 🎯 COMBINED FUNCTION (FOR UI)
-# ----------------------------
-def predict_all(district, season):
-
-    base = predict_baseline(district, season)
-    imp = predict_improved(district, season)
-
-    if isinstance(base, str):
-        return base
-
-    if isinstance(imp, str):
-        return imp
-
-    return {
-        "baseline": base,
-        "improved": imp
+        "rf": (rf_crop, float(rf_conf)),
+        "nn": (nn_crop, float(nn_conf)),
+        "shap": shap_values
     }

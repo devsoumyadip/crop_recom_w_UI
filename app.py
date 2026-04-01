@@ -3,7 +3,7 @@ import pandas as pd
 from predict import predict_baseline, predict_improved
 
 # ----------------------------
-# LOAD DATA (for dropdowns)
+# LOAD DATA
 # ----------------------------
 df = pd.read_csv("./data/finalData.csv")
 
@@ -17,21 +17,18 @@ districts = sorted(df["district"].unique())
 seasons = sorted(df["season"].unique())
 
 # ----------------------------
-# UI CONFIG
+# UI
 # ----------------------------
 st.set_page_config(page_title="Crop Recommendation", layout="centered")
 
 st.title("🌾 Smart Crop Recommendation System")
-st.markdown("### Compare Baseline vs Improved Models")
+st.markdown("### Baseline vs Improved Models")
 
-# ----------------------------
-# INPUTS
-# ----------------------------
 district = st.selectbox("📍 Select District", districts)
 season = st.selectbox("🌦️ Select Season", seasons)
 
 # ----------------------------
-# BUTTON
+# PREDICT
 # ----------------------------
 if st.button("🚀 Predict Crop"):
 
@@ -48,47 +45,36 @@ if st.button("🚀 Predict Crop"):
         st.success("✅ Prediction Generated")
 
         # ============================
-        # 🧪 BASELINE MODELS
+        # BASELINE
         # ============================
         st.markdown("## 🧪 Baseline Models")
 
-        # RF Baseline (Top-1)
-        rf_index_base = baseline["rf_probs"].argmax()
-        rf_crop_base = baseline["top3"][0][0]
-        rf_conf_base = baseline["rf_probs"][rf_index_base]
-
         st.subheader("🌳 Random Forest (Baseline)")
-        st.write(f"**Prediction:** {rf_crop_base}")
-        # st.write(f"Confidence: {rf_conf_base:.3f}")
-
-        # NN Baseline (Top-1)
-        nn_index_base = baseline["nn_probs"].argmax()
-        nn_crop_base = baseline["top3"][0][0]
-        nn_conf_base = baseline["nn_probs"][nn_index_base]
+        st.write(f"**Prediction:** {baseline['rf'][0]}")
+        st.write(f"Confidence: {baseline['rf'][1]:.3f}")
 
         st.subheader("🤖 Neural Network (Baseline)")
-        st.write(f"**Prediction:** {nn_crop_base}")
-        # st.write(f"Confidence: {nn_conf_base:.3f}")
+        st.write(f"**Prediction:** {baseline['nn'][0]}")
+        st.write(f"Confidence: {baseline['nn'][1]:.3f}")
 
         # ============================
-        # 🚀 IMPROVED MODELS
+        # IMPROVED
         # ============================
         st.markdown("## 🚀 Improved Models")
 
-        # RF Improved (Top-1)
-        rf_index_imp = improved["rf_probs"].argmax()
-        rf_crop_imp = improved["top3"][0][0]
-        rf_conf_imp = improved["rf_probs"][rf_index_imp]
-
         st.subheader("🌳 Random Forest (Improved)")
-        st.write(f"**Prediction:** {rf_crop_imp}")
-        # st.write(f"Confidence: {rf_conf_imp:.3f}")
-
-        # NN Improved (Top-1)
-        nn_index_imp = improved["nn_probs"].argmax()
-        nn_crop_imp = improved["top3"][0][0]
-        nn_conf_imp = improved["nn_probs"][nn_index_imp]
+        st.write(f"**Prediction:** {improved['rf'][0]}")
+        st.write(f"Confidence: {improved['rf'][1]:.3f}")
 
         st.subheader("🤖 Neural Network (Improved)")
-        st.write(f"**Prediction:** {nn_crop_imp}")
-        # st.write(f"Confidence: {nn_conf_imp:.3f}")
+        st.write(f"**Prediction:** {improved['nn'][0]}")
+        st.write(f"Confidence: {improved['nn'][1]:.3f}")
+
+        # ============================
+        # SHAP
+        # ============================
+        st.markdown("## 🧠 Why this prediction? (Explainable AI)")
+
+        for feature, value in improved["shap"]:
+            impact = "⬆️ increases" if value > 0 else "⬇️ decreases"
+            st.write(f"{feature} → {impact} prediction ({value:.3f})")
