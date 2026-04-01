@@ -109,7 +109,7 @@ nn_base.save("models/nn_baseline.h5")
 
 features = [
     "district", "season", "year",
-    "area", "production", "yield",
+    "area", 
     "temperature", "rainfall", "humidity",
     "nitrogen", "phosphorus", "potassium",
     "organic_carbon", "ph", "micronutrient_score"

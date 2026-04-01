@@ -126,8 +126,6 @@ def predict_improved(district, season):
         "season": s,
         "year": year,
         "area": avg_vals["area"],
-        "production": avg_vals["production"],
-        "yield": avg_vals["yield"],
         "temperature": avg_vals["temperature"],
         "rainfall": avg_vals["rainfall"],
         "humidity": avg_vals["humidity"],
