@@ -2,7 +2,9 @@ import streamlit as st
 import pandas as pd
 from predict import predict_full
 
-# Load data
+# ----------------------------
+# LOAD DATA
+# ----------------------------
 df = pd.read_csv("./data/finalData.csv")
 
 df.columns = df.columns.str.lower().str.strip()
@@ -14,36 +16,50 @@ for col in ["district", "season"]:
 districts = sorted(df["district"].unique())
 seasons = sorted(df["season"].unique())
 
+# ----------------------------
 # UI
+# ----------------------------
 st.set_page_config(page_title="Smart Crop AI", layout="centered")
 
-st.title("🌾 Smart Crop Recommendation (AI Pipeline)")
-st.markdown("### LightGBM + RF + NN + Explainable AI")
+st.title("🌾 Smart Crop Recommendation System")
+st.markdown("### LightGBM + Ensemble + Explainable AI")
 
-district = st.selectbox("📍 District", districts)
-season = st.selectbox("🌦️ Season", seasons)
+district = st.selectbox("📍 Select District", districts)
+season = st.selectbox("🌦️ Select Season", seasons)
 
-if st.button("🚀 Predict"):
+# ----------------------------
+# PREDICT
+# ----------------------------
+if st.button("🚀 Predict Crop"):
 
     result = predict_full(district, season)
 
     if isinstance(result, str):
         st.error(result)
+
     else:
         st.success("✅ Prediction Generated")
 
-        # ----------------------------
-        # TOP 3 CROPS
-        # ----------------------------
-        st.markdown("## 🌱 Recommended Crops")
+        # ============================
+        # LIGHTGBM
+        # ============================
+        st.markdown("## ⭐ LightGBM Prediction")
 
-        for i, (crop, prob) in enumerate(result["top3"], 1):
-            st.write(f"{i}. **{crop}** → {prob:.3f}")
+        st.write(f"**Crop:** {result['lgbm'][0]}")
+        # st.write(f"Confidence: {result['lgbm'][1]:.3f}")
 
-        # ----------------------------
+        # ============================
+        # ENSEMBLE
+        # ============================
+        st.markdown("## 🔥 Ensemble Prediction")
+
+        st.write(f"**Crop:** {result['ensemble'][0]}")
+        # st.write(f"Confidence: {result['ensemble'][1]:.3f}")
+
+        # ============================
         # SHAP
-        # ----------------------------
-        st.markdown("## 🧠 Why this prediction?")
+        # ============================
+        st.markdown("## 🧠 Why this prediction? (Explainable AI)")
 
         for feature, value in result["shap"]:
             impact = "⬆️ increases" if value > 0 else "⬇️ decreases"

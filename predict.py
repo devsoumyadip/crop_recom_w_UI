@@ -8,7 +8,7 @@ import shap
 # LOAD MODELS
 # ----------------------------
 rf_model = joblib.load("models/rf_improved.pkl")
-nn_model = tf.keras.models.load_model("models/nn_improved.keras")
+nn_model = tf.keras.models.load_model("models/nn_improved.h5")
 lgb_model = joblib.load("models/lgb_model.pkl")
 
 scaler = joblib.load("models/scaler.pkl")
@@ -18,8 +18,8 @@ le_district = encoders["district"]
 le_season = encoders["season"]
 le_crop = encoders["crop"]
 
-# SHAP
-explainer = shap.TreeExplainer(rf_model)
+# SHAP (use best model)
+explainer = shap.TreeExplainer(lgb_model)
 
 # ----------------------------
 # LOAD DATA
@@ -66,14 +66,14 @@ def prepare_input(district, season):
 
 
 # ----------------------------
-# SHAP FUNCTION
+# SHAP
 # ----------------------------
 def get_shap_explanation(input_df):
 
     shap_values = explainer.shap_values(input_df)
 
     if isinstance(shap_values, list):
-        pred_class = np.argmax(rf_model.predict_proba(input_df))
+        pred_class = np.argmax(lgb_model.predict_proba(input_df))
         shap_vals = shap_values[pred_class]
     else:
         shap_vals = shap_values
@@ -90,7 +90,7 @@ def get_shap_explanation(input_df):
 
 
 # ----------------------------
-# 🚀 FULL PIPELINE PREDICT
+# 🚀 FULL PREDICT
 # ----------------------------
 def predict_full(district, season):
 
@@ -116,25 +116,31 @@ def predict_full(district, season):
     lgb_probs = lgb_model.predict_proba(input_df)[0]
 
     # ----------------------------
-    # ENSEMBLE (AVERAGE)
+    # 🔥 ENSEMBLE
     # ----------------------------
-    # final_probs = (rf_probs + nn_probs + lgb_probs) / 3
-    final_probs = (0.2 * rf_probs + 0.2 * nn_probs + 0.6 * lgb_probs)
+    ensemble_probs = (0.2 * rf_probs + 0.2 * nn_probs + 0.6 * lgb_probs)
 
     # ----------------------------
-    # TOP 3
+    # 🎯 TOP 1 (LGBM)
     # ----------------------------
-    top3_idx = np.argsort(final_probs)[::-1][:3]
-
-    crops = le_crop.inverse_transform(top3_idx)
-    probs = final_probs[top3_idx]
+    lgb_idx = np.argmax(lgb_probs)
+    lgb_crop = le_crop.inverse_transform([lgb_idx])[0]
+    lgb_conf = lgb_probs[lgb_idx]
 
     # ----------------------------
-    # SHAP
+    # 🎯 TOP 1 (ENSEMBLE)
+    # ----------------------------
+    ens_idx = np.argmax(ensemble_probs)
+    ens_crop = le_crop.inverse_transform([ens_idx])[0]
+    ens_conf = ensemble_probs[ens_idx]
+
+    # ----------------------------
+    # 🧠 SHAP
     # ----------------------------
     shap_values = get_shap_explanation(input_df)
 
     return {
-        "top3": list(zip(crops, probs)),
+        "lgbm": (lgb_crop, float(lgb_conf)),
+        "ensemble": (ens_crop, float(ens_conf)),
         "shap": shap_values
     }
