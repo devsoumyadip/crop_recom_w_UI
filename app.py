@@ -51,11 +51,11 @@ if st.button("🚀 Predict Crop"):
 
         st.subheader("🌳 Random Forest (Baseline)")
         st.write(f"**Prediction:** {baseline['rf'][0]}")
-        st.write(f"Confidence: {baseline['rf'][1]:.3f}")
+        # st.write(f"Confidence: {baseline['rf'][1]:.3f}")
 
         st.subheader("🤖 Neural Network (Baseline)")
         st.write(f"**Prediction:** {baseline['nn'][0]}")
-        st.write(f"Confidence: {baseline['nn'][1]:.3f}")
+        # st.write(f"Confidence: {baseline['nn'][1]:.3f}")
 
         # ============================
         # IMPROVED
@@ -64,11 +64,11 @@ if st.button("🚀 Predict Crop"):
 
         st.subheader("🌳 Random Forest (Improved)")
         st.write(f"**Prediction:** {improved['rf'][0]}")
-        st.write(f"Confidence: {improved['rf'][1]:.3f}")
+        # st.write(f"Confidence: {improved['rf'][1]:.3f}")
 
         st.subheader("🤖 Neural Network (Improved)")
         st.write(f"**Prediction:** {improved['nn'][0]}")
-        st.write(f"Confidence: {improved['nn'][1]:.3f}")
+        # st.write(f"Confidence: {improved['nn'][1]:.3f}")
 
         # ============================
         # SHAP
