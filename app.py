@@ -1,101 +1,50 @@
-# import streamlit as st
-# import pandas as pd
-# from predict import predict_crop
-
-# # Load dataset (for dropdown)
-# df = pd.read_csv("./data/west_bengal_cleaned_crop.csv")
-
-# # Clean for UI
-# df["district"] = df["district"].str.lower().str.strip()
-# df["season"] = df["season"].str.lower().str.strip()
-
-# # Unique values
-# districts = sorted(df["district"].unique())
-# seasons = sorted(df["season"].unique())
-
-# # ----------------------------
-# # UI
-# # ----------------------------
-# st.set_page_config(page_title="Crop Recommendation", layout="centered")
-
-# st.title("🌾 Crop Recommendation System (Baseline)")
-
-# st.write("📌 Enter district and season to get crop recommendation")
-
-# # Inputs
-# district = st.selectbox("Select District", districts)
-# season = st.selectbox("Select Season", seasons)
-
-# # Button
-# if st.button("🔍 Recommend Crop"):
-
-#     result = predict_crop(district, season)
-
-#     if isinstance(result, str):
-#         st.error(result)
-#     else:
-#         st.success("✅ Prediction Generated")
-
-#         st.subheader("🌳 Random Forest Result")
-#         st.write(f"Crop: **{result['rf_crop']}**")
-#         # st.write(f"Confidence: {result['rf_confidence']:.2f}")
-
-#         st.subheader("🤖 Neural Network Result")
-#         st.write(f"Crop: **{result['nn_crop']}**")
-#         # st.write(f"Confidence: {result['nn_confidence']:.2f}")
-
-
-
-
-############
-# proposed #
-###########
-
-
-
 import streamlit as st
 import pandas as pd
-from predict import predict_improved
+from predict import predict_full
 
-# Load dataset
-df = pd.read_csv("./data/west_bengal_cleaned_crop.csv")
+# Load data
+df = pd.read_csv("./data/finalData.csv")
 
-# Clean
-df["district"] = df["district"].str.lower().str.strip()
-df["season"] = df["season"].str.lower().str.strip()
+df.columns = df.columns.str.lower().str.strip()
+df = df.drop(columns=["unnamed: 0"], errors="ignore")
 
-# Apply same filtering
-top_crops = df["crop"].value_counts().head(6).index
-df = df[df["crop"].isin(top_crops)]
+for col in ["district", "season"]:
+    df[col] = df[col].str.lower().str.strip()
 
 districts = sorted(df["district"].unique())
 seasons = sorted(df["season"].unique())
 
-# ----------------------------
 # UI
-# ----------------------------
-st.set_page_config(page_title="Crop Recommendation", layout="centered")
+st.set_page_config(page_title="Smart Crop AI", layout="centered")
 
-st.title("🌾 Crop Recommendation System")
+st.title("🌾 Smart Crop Recommendation (AI Pipeline)")
+st.markdown("### LightGBM + RF + NN + Explainable AI")
 
-# st.write("Uses feature engineering + balanced dataset")
+district = st.selectbox("📍 District", districts)
+season = st.selectbox("🌦️ Season", seasons)
 
-district = st.selectbox("Select District", districts)
-season = st.selectbox("Select Season", seasons)
+if st.button("🚀 Predict"):
 
-if st.button("🔍 Recommend Crop"):
-
-    result = predict_improved(district, season)
+    result = predict_full(district, season)
 
     if isinstance(result, str):
         st.error(result)
     else:
         st.success("✅ Prediction Generated")
 
-        st.subheader("🌳 Random Forest ")
-        st.write(f"Crop: **{result['rf_crop']}**")
-        # st.write(f"Confidence: {result['rf_confidence']:.2f}")
+        # ----------------------------
+        # TOP 3 CROPS
+        # ----------------------------
+        st.markdown("## 🌱 Recommended Crops")
 
-        st.subheader("🤖 Neural Network ")
-        st.write(f"Crop: **{result['nn_crop']}**")
-        # st.write(f"Confidence: {result['nn_confidence']:.2f}")
+        for i, (crop, prob) in enumerate(result["top3"], 1):
+            st.write(f"{i}. **{crop}** → {prob:.3f}")
+
+        # ----------------------------
+        # SHAP
+        # ----------------------------
+        st.markdown("## 🧠 Why this prediction?")
+
+        for feature, value in result["shap"]:
+            impact = "⬆️ increases" if value > 0 else "⬇️ decreases"
+            st.write(f"{feature} → {impact} prediction ({value:.3f})")
