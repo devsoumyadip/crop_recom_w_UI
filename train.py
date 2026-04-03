@@ -1,3 +1,5 @@
+# have to write the predict and app file for knn. only train file is created
+
 import pandas as pd
 import numpy as np
 import joblib
