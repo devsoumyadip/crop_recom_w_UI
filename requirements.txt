@@ -1,7 +1,10 @@
-pandas
 numpy
+pandas
 scikit-learn
-tensorflow
+xgboost
 lightgbm
+catboost
+shap
+sdv
 streamlit
 joblib

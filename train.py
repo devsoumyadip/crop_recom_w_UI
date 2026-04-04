@@ -1,183 +1,43 @@
-# import pandas as pd
-# import numpy as np
-# import joblib
-
-# from sklearn.preprocessing import LabelEncoder
-# from sklearn.model_selection import train_test_split
-# from sklearn.ensemble import RandomForestClassifier
-# from sklearn.metrics import accuracy_score, classification_report, log_loss
-
-# import tensorflow as tf
-# from tensorflow.keras.models import Sequential
-# from tensorflow.keras.layers import Dense, Dropout
-
-# # ----------------------------
-# # LOAD DATA
-# # ----------------------------
-# df = pd.read_csv("./data/west_bengal_cleaned_crop.csv")
-
-# # Clean
-# df.columns = df.columns.str.lower().str.strip()
-# for col in ["district", "season", "crop"]:
-#     df[col] = df[col].str.lower().str.strip()
-
-# # ----------------------------
-# # CREATE YIELD SCORE (CRITICAL STEP FROM PAPER)
-# # ----------------------------
-# df["yield_score"] = df["yield"] * df["production"]
-
-# # ----------------------------
-# # ENCODING
-# # ----------------------------
-# le_district = LabelEncoder()
-# le_season = LabelEncoder()
-# le_crop = LabelEncoder()
-
-# df["district"] = le_district.fit_transform(df["district"])
-# df["season"] = le_season.fit_transform(df["season"])
-# df["crop"] = le_crop.fit_transform(df["crop"])
-
-# # ----------------------------
-# # FEATURES (ONLY 2 AS PER PAPER)
-# # ----------------------------
-# X = df[["district", "season"]]
-# y = df["crop"]
-
-# # ----------------------------
-# # SPLIT (80-20)
-# # ----------------------------
-# X_train, X_test, y_train, y_test = train_test_split(
-#     X, y, test_size=0.2, random_state=42
-# )
-
-# # =====================================================
-# # 🌳 RANDOM FOREST (EXACT PAPER)
-# # =====================================================
-# rf_model = RandomForestClassifier(
-#     n_estimators=100,
-#     random_state=42
-# )
-
-# rf_model.fit(X_train, y_train)
-
-# rf_pred = rf_model.predict(X_test)
-# rf_prob = rf_model.predict_proba(X_test)
-
-# rf_acc = accuracy_score(y_test, rf_pred)
-# rf_loss = log_loss(y_test, rf_prob, labels=np.unique(y_train))
-
-# print("\n==============================")
-# print("Method: Random Forest")
-# print("Accuracy:", rf_acc)
-# print("Loss:", rf_loss)
-# print("Type of Loss: Log Loss")
-# print("==============================")
-
-# # =====================================================
-# # 🤖 FEEDFORWARD NN (EXACT PAPER)
-# # =====================================================
-
-# # NO scaling used in paper (important detail)
-
-# # Model
-# nn_model = Sequential([
-#     Dense(64, activation='relu', input_shape=(2,)),
-#     Dropout(0.2),
-#     Dense(32, activation='relu'),
-#     Dropout(0.2),
-#     Dense(len(np.unique(y)), activation='softmax')
-# ])
-
-# nn_model.compile(
-#     optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-#     loss='sparse_categorical_crossentropy',
-#     metrics=['accuracy']
-# )
-
-# # Train (50 epochs exactly as paper)
-# nn_model.fit(
-#     X_train, y_train,
-#     epochs=50,
-#     batch_size=32,
-#     validation_data=(X_test, y_test),
-#     verbose=1
-# )
-
-# # Evaluate
-# nn_loss, nn_acc = nn_model.evaluate(X_test, y_test, verbose=0)
-
-# print("\n==============================")
-# print("Method: Feedforward Neural Network")
-# print("Accuracy:", nn_acc)
-# print("Loss:", nn_loss)
-# print("Type of Loss: Sparse Categorical Crossentropy")
-# print("==============================")
-
-# # ----------------------------
-# # SAVE MODELS
-# # ----------------------------
-# joblib.dump(rf_model, "models/rf_model.pkl")
-
-# nn_model.save("models/nn_model.h5")
-
-# joblib.dump({
-#     "district": le_district,
-#     "season": le_season,
-#     "crop": le_crop
-# }, "models/encoders.pkl")
-
-# print("\n✅ Exact paper training complete")
-
-
-
-############
-# proposed #
-###########
-
-
-
-
 import pandas as pd
 import numpy as np
 import joblib
 
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, log_loss
 
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout
-from tensorflow.keras.utils import to_categorical
+from lightgbm import LGBMClassifier
+from xgboost import XGBClassifier
 
 # ----------------------------
 # LOAD DATA
 # ----------------------------
-df = pd.read_csv("./data/west_bengal_cleaned_crop.csv")
+real_df = pd.read_csv("./data/finalData.csv")
+synthetic_df = pd.read_csv("./data/synthetic_data.csv")
 
-df.columns = df.columns.str.lower().str.strip()
+# CLEAN
+for df in [real_df, synthetic_df]:
+    df.columns = df.columns.str.lower().str.strip()
+    df.drop(columns=["unnamed: 0"], inplace=True, errors="ignore")
 
-# Clean text
-for col in ["district", "season", "crop"]:
-    df[col] = df[col].str.lower().str.strip()
-
-# ----------------------------
-# 🔥 FILTER TOP CROPS
-# ----------------------------
-top_crops = df["crop"].value_counts().head(6).index
-df = df[df["crop"].isin(top_crops)]
+    for col in ["district", "season", "crop"]:
+        df[col] = df[col].astype(str).str.lower().str.strip()
 
 # ----------------------------
-# 🔥 FEATURE ENGINEERING
+# FEATURE ENGINEERING
 # ----------------------------
-df["productivity"] = df["production"] / (df["area"] + 1)
+for df in [real_df, synthetic_df]:
+    df["rainfall_temp_ratio"] = df["rainfall"] / (df["temperature"] + 1)
+    df["npk_sum"] = df["nitrogen"] + df["phosphorus"] + df["potassium"]
+    df["temp_humidity"] = df["temperature"] * df["humidity"]
+    df["rainfall_per_area"] = df["rainfall"] / (df["area"] + 1)
 
 # ----------------------------
-# 🔥 BALANCE DATASET
+# FILTER TOP CROPS
 # ----------------------------
-df = df.groupby("crop").apply(lambda x: x.sample(min(len(x), 500), random_state=42))
-df = df.reset_index(drop=True)
+top_crops = real_df["crop"].value_counts().head(6).index
+real_df = real_df[real_df["crop"].isin(top_crops)]
+synthetic_df = synthetic_df[synthetic_df["crop"].isin(top_crops)]
 
 # ----------------------------
 # ENCODING
@@ -186,18 +46,34 @@ le_district = LabelEncoder()
 le_season = LabelEncoder()
 le_crop = LabelEncoder()
 
-df["district"] = le_district.fit_transform(df["district"])
-df["season"] = le_season.fit_transform(df["season"])
-df["crop"] = le_crop.fit_transform(df["crop"])
+real_df["district"] = le_district.fit_transform(real_df["district"])
+real_df["season"] = le_season.fit_transform(real_df["season"])
+real_df["crop"] = le_crop.fit_transform(real_df["crop"])
+
+synthetic_df["district"] = le_district.transform(synthetic_df["district"])
+synthetic_df["season"] = le_season.transform(synthetic_df["season"])
+synthetic_df["crop"] = le_crop.transform(synthetic_df["crop"])
 
 # ----------------------------
-# FEATURES (IMPROVED BASELINE)
+# COMBINE DATA (100% synthetic)
 # ----------------------------
-X = df[[
+df = pd.concat([real_df, synthetic_df], ignore_index=True)
+
+print("Final dataset size:", df.shape)
+
+# ----------------------------
+# FEATURES
+# ----------------------------
+features = [
     "district", "season", "year",
-    "area", "production", "productivity"
-]]
+    "area",
+    "temperature", "rainfall", "humidity",
+    "nitrogen", "phosphorus", "potassium",
+    "organic_carbon", "ph", "micronutrient_score",
+    "rainfall_temp_ratio", "npk_sum", "temp_humidity", "rainfall_per_area"
+]
 
+X = df[features]
 y = df["crop"]
 
 # ----------------------------
@@ -208,86 +84,66 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 # =====================================================
-# 🌳 RANDOM FOREST (TUNED)
+# 🌳 LIGHTGBM
 # =====================================================
-rf_model = RandomForestClassifier(
+lgb_model = LGBMClassifier(
     n_estimators=300,
-    max_depth=15,
-    min_samples_split=5,
+    learning_rate=0.05,
+    max_depth=8,
+    num_leaves=31,
+    subsample=0.9,
+    colsample_bytree=0.9,
     random_state=42
 )
 
-rf_model.fit(X_train, y_train)
+lgb_model.fit(X_train, y_train)
 
-rf_pred = rf_model.predict(X_test)
-rf_prob = rf_model.predict_proba(X_test)
+lgb_pred = lgb_model.predict(X_test)
+lgb_prob = lgb_model.predict_proba(X_test)
 
-rf_acc = accuracy_score(y_test, rf_pred)
-rf_loss = log_loss(y_test, rf_prob)
-
-print("\n==============================")
-print("Method: Random Forest (Improved)")
-print("Accuracy:", rf_acc)
-print("Loss:", rf_loss)
-print("Type of Loss: Log Loss")
-print("==============================")
-
-joblib.dump(rf_model, "models/rf_model_improved.pkl")
+print("\n===== LIGHTGBM =====")
+print("Accuracy:", accuracy_score(y_test, lgb_pred))
+print("Loss:", log_loss(y_test, lgb_prob))
 
 # =====================================================
-# 🤖 NEURAL NETWORK (IMPROVED)
+# ⚡ XGBOOST
 # =====================================================
-scaler = StandardScaler()
-X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test)
-
-joblib.dump(scaler, "models/scaler_improved.pkl")
-
-y_train_nn = to_categorical(y_train)
-y_test_nn = to_categorical(y_test)
-
-# Improved architecture
-nn_model = Sequential([
-    Dense(128, activation='relu', input_shape=(X_train.shape[1],)),
-    Dropout(0.3),
-    Dense(64, activation='relu'),
-    Dropout(0.3),
-    Dense(y_train_nn.shape[1], activation='softmax')
-])
-
-nn_model.compile(
-    optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-    loss='categorical_crossentropy',
-    metrics=['accuracy']
+xgb_model = XGBClassifier(
+    n_estimators=400,
+    learning_rate=0.05,
+    max_depth=8,
+    eval_metric='mlogloss'
 )
 
-nn_model.fit(
-    X_train_scaled, y_train_nn,
-    epochs=50,
-    batch_size=32,
-    validation_data=(X_test_scaled, y_test_nn),
-    verbose=1
-)
+xgb_model.fit(X_train, y_train)
 
-# Evaluate
-nn_loss, nn_acc = nn_model.evaluate(X_test_scaled, y_test_nn, verbose=0)
+xgb_pred = xgb_model.predict(X_test)
+xgb_prob = xgb_model.predict_proba(X_test)
 
-print("\n==============================")
-print("Method: Feedforward Neural Network (Improved)")
-print("Accuracy:", nn_acc)
-print("Loss:", nn_loss)
-print("Type of Loss: Categorical Crossentropy")
-print("==============================")
+print("\n===== XGBOOST =====")
+print("Accuracy:", accuracy_score(y_test, xgb_pred))
+print("Loss:", log_loss(y_test, xgb_prob))
 
-nn_model.save("models/nn_model_improved.h5")
+# =====================================================
+# 🔥 ENSEMBLE (FINAL MODEL)
+# =====================================================
+ensemble_prob = 0.55 * lgb_prob + 0.45 * xgb_prob
+ensemble_pred = np.argmax(ensemble_prob, axis=1)
+
+print("\n===== LGBM + XGB ENSEMBLE =====")
+print("Accuracy:", accuracy_score(y_test, ensemble_pred))
+print("Loss:", log_loss(y_test, ensemble_prob))
 
 # ----------------------------
-# SAVE ENCODERS
+# SAVE MODELS
 # ----------------------------
+joblib.dump(lgb_model, "models/lgb_final.pkl")
+joblib.dump(xgb_model, "models/xgb_final.pkl")
+
 joblib.dump({
     "district": le_district,
     "season": le_season,
     "crop": le_crop
-}, "models/encoders_improved.pkl")
+}, "models/encoders.pkl")
 
-print("\n✅ Improved baseline training complete")
+print("\n✅ FINAL ENSEMBLE TRAINING COMPLETE")

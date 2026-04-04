@@ -1,101 +1,85 @@
-# import streamlit as st
-# import pandas as pd
-# from predict import predict_crop
-
-# # Load dataset (for dropdown)
-# df = pd.read_csv("./data/west_bengal_cleaned_crop.csv")
-
-# # Clean for UI
-# df["district"] = df["district"].str.lower().str.strip()
-# df["season"] = df["season"].str.lower().str.strip()
-
-# # Unique values
-# districts = sorted(df["district"].unique())
-# seasons = sorted(df["season"].unique())
-
-# # ----------------------------
-# # UI
-# # ----------------------------
-# st.set_page_config(page_title="Crop Recommendation", layout="centered")
-
-# st.title("🌾 Crop Recommendation System (Baseline)")
-
-# st.write("📌 Enter district and season to get crop recommendation")
-
-# # Inputs
-# district = st.selectbox("Select District", districts)
-# season = st.selectbox("Select Season", seasons)
-
-# # Button
-# if st.button("🔍 Recommend Crop"):
-
-#     result = predict_crop(district, season)
-
-#     if isinstance(result, str):
-#         st.error(result)
-#     else:
-#         st.success("✅ Prediction Generated")
-
-#         st.subheader("🌳 Random Forest Result")
-#         st.write(f"Crop: **{result['rf_crop']}**")
-#         # st.write(f"Confidence: {result['rf_confidence']:.2f}")
-
-#         st.subheader("🤖 Neural Network Result")
-#         st.write(f"Crop: **{result['nn_crop']}**")
-#         # st.write(f"Confidence: {result['nn_confidence']:.2f}")
-
-
-
-
-############
-# proposed #
-###########
-
-
-
 import streamlit as st
 import pandas as pd
-from predict import predict_improved
+from predict import predict_crop
 
-# Load dataset
-df = pd.read_csv("./data/west_bengal_cleaned_crop.csv")
+# ----------------------------
+# LOAD DATA (for dropdowns)
+# ----------------------------
+df = pd.read_csv("./data/finalData.csv")
 
-# Clean
-df["district"] = df["district"].str.lower().str.strip()
-df["season"] = df["season"].str.lower().str.strip()
+df.columns = df.columns.str.lower().str.strip()
+df = df.drop(columns=["unnamed: 0"], errors="ignore")
 
-# Apply same filtering
-top_crops = df["crop"].value_counts().head(6).index
-df = df[df["crop"].isin(top_crops)]
+for col in ["district", "season"]:
+    df[col] = df[col].astype(str).str.lower().str.strip()
 
 districts = sorted(df["district"].unique())
 seasons = sorted(df["season"].unique())
 
 # ----------------------------
-# UI
+# PAGE CONFIG
 # ----------------------------
-st.set_page_config(page_title="Crop Recommendation", layout="centered")
+st.set_page_config(
+    page_title="Smart Crop Recommendation",
+    page_icon="🌾",
+    layout="centered"
+)
 
-st.title("🌾 Crop Recommendation System")
+# ----------------------------
+# TITLE
+# ----------------------------
+st.title("🌾 Smart Crop Recommendation System")
+st.markdown("### XGBoost + GAN + Explainable AI")
 
-# st.write("Uses feature engineering + balanced dataset")
+st.markdown("---")
+
+# ----------------------------
+# INPUT SECTION
+# ----------------------------
+st.subheader("📍 Select Inputs")
 
 district = st.selectbox("Select District", districts)
 season = st.selectbox("Select Season", seasons)
 
-if st.button("🔍 Recommend Crop"):
+st.markdown("---")
 
-    result = predict_improved(district, season)
+# ----------------------------
+# PREDICT BUTTON
+# ----------------------------
+if st.button("🚀 Predict Crop"):
+
+    result = predict_crop(district, season)
 
     if isinstance(result, str):
         st.error(result)
+
     else:
         st.success("✅ Prediction Generated")
 
-        st.subheader("🌳 Random Forest ")
-        st.write(f"Crop: **{result['rf_crop']}**")
-        # st.write(f"Confidence: {result['rf_confidence']:.2f}")
+        # ----------------------------
+        # RESULT
+        # ----------------------------
+        st.markdown("## 🌱 Recommended Crop")
 
-        st.subheader("🤖 Neural Network ")
-        st.write(f"Crop: **{result['nn_crop']}**")
-        # st.write(f"Confidence: {result['nn_confidence']:.2f}")
+        st.markdown(f"### **{result['crop'].upper()}**")
+        st.write(f"**Confidence:** {result['confidence']:.3f}")
+
+        st.markdown("---")
+
+        # ----------------------------
+        # SHAP EXPLANATION
+        # ----------------------------
+        st.markdown("## 🧠 Why this prediction?")
+
+        for feature, value in result["shap"]:
+            if value > 0:
+                st.write(f"✔ **{feature}** → increases prediction ({value:.3f})")
+            else:
+                st.write(f"❌ **{feature}** → decreases prediction ({value:.3f})")
+
+        st.markdown("---")
+
+        # ----------------------------
+        # FOOTER INSIGHT
+        # ----------------------------
+        st.info("This recommendation is based on environmental and soil conditions using AI models.")
